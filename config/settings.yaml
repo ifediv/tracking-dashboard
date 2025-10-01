@@ -1,0 +1,31 @@
+# Strategy Types (enforce via database constraint)
+strategy_types:
+  - news
+  - secondary
+  - orderflow_off_open
+  - breakout_breakdown
+  - swing
+  - curl
+  - roll
+  - orderflow
+  - earnings
+  - ipo
+  - waterfall
+
+# Analysis Timeframes (minutes)
+timeframes: [3, 5, 10, 15, 30, 60, 120, 240]
+
+# Validation Rules
+validation:
+  max_reasonable_drawdown_pct: -50.0
+  min_trade_duration_seconds: 60
+  max_trade_duration_hours: 24
+  max_size_min: 1
+  max_size_max: 1000000
+
+# CSV Import Settings
+csv_import:
+  default_strategy_type: "news"  # If not provided in CSV
+  date_format: "%Y-%m-%d %H:%M:%S"
+  timezone: "America/New_York"
+  delimiter: "|"

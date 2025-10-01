@@ -1,0 +1,17 @@
+# Core Dependencies - Phase 1
+sqlalchemy>=2.0.36  # Python 3.13 compatible
+python-dotenv==1.0.0
+pyyaml==6.0.1
+
+# Testing
+pytest>=8.0.0
+pytest-cov>=4.1.0
+
+# Future Phase 2 Dependencies (commented out for now)
+# pandas>=2.0.0  # For data analysis (Phase 2+)
+# polygon-api-client==1.12.4
+# alembic==1.13.1
+
+# Future Phase 4 Dependencies (commented out for now)
+# streamlit==1.29.0
+# plotly==5.18.0
