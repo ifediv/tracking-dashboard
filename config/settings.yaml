@@ -29,3 +29,24 @@ csv_import:
   date_format: "%Y-%m-%d %H:%M:%S"
   timezone: "America/New_York"
   delimiter: "|"
+
+# Polygon Data Fetching Settings
+polygon_data:
+  # Default granularity for fetching market data
+  # Options: 'minute', 'second', 'tick'
+  # - minute: Good for free tier, general analysis (390 bars/trade)
+  # - second: Best balance of precision and efficiency (23,400 bars/trade) - Requires Starter+
+  # - tick: Maximum precision (varies, can be 100k+ ticks/trade) - Requires Developer+
+  default_granularity: "minute"
+
+  # Whether to automatically upgrade to more granular data if available
+  auto_upgrade_granularity: false
+
+  # Maximum ticks to fetch per request
+  max_ticks_per_request: 50000
+
+  # Cache TTL for different data types (hours)
+  cache_ttl:
+    minute: 24   # Minute bars cached for 24 hours
+    second: 24   # Second bars cached for 24 hours
+    tick: 12     # Tick data cached for 12 hours (more volatile)
