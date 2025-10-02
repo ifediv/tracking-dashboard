@@ -4,7 +4,7 @@ import csv
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
-from src.database.operations import create_trade
+from src.database.operations import create_trade, check_duplicate_trade
 from src.database.session import get_session
 from src.utils.validation import validate_csv_row, ValidationError
 from src.utils.config import config
@@ -16,6 +16,7 @@ class CSVImportResult:
     Attributes:
         successful: List of successfully imported trade_ids
         failed: List of (row_number, error_message) tuples
+        skipped: List of (row_number, reason) tuples for duplicates
         total_rows: Total number of rows processed
     """
 
@@ -23,6 +24,7 @@ class CSVImportResult:
         """Initialize empty result container."""
         self.successful: List[int] = []
         self.failed: List[Tuple[int, str]] = []
+        self.skipped: List[Tuple[int, str]] = []
         self.total_rows: int = 0
 
     @property
@@ -34,6 +36,11 @@ class CSVImportResult:
     def failure_count(self) -> int:
         """Get count of failed imports."""
         return len(self.failed)
+
+    @property
+    def skipped_count(self) -> int:
+        """Get count of skipped duplicates."""
+        return len(self.skipped)
 
     def add_success(self, trade_id: int):
         """Record successful import.
@@ -51,6 +58,15 @@ class CSVImportResult:
             error: Error message
         """
         self.failed.append((row_num, error))
+
+    def add_skipped(self, row_num: int, reason: str):
+        """Record skipped import (duplicate).
+
+        Args:
+            row_num: Row number that was skipped
+            reason: Reason for skipping
+        """
+        self.skipped.append((row_num, reason))
 
     def summary(self) -> str:
         """Generate human-readable summary.
@@ -71,8 +87,16 @@ class CSVImportResult:
             f"{'='*70}",
             f"Total Rows: {self.total_rows}",
             f"✅ Successful: {self.success_count}",
+            f"⏭️ Skipped (Duplicates): {self.skipped_count}",
             f"❌ Failed: {self.failure_count}",
         ]
+
+        if self.skipped:
+            lines.append(f"\nSkipped (already exist):")
+            for row_num, reason in self.skipped[:10]:  # Show first 10
+                lines.append(f"  Row {row_num}: {reason}")
+            if len(self.skipped) > 10:
+                lines.append(f"  ... and {len(self.skipped) - 10} more duplicates")
 
         if self.failed:
             lines.append(f"\nErrors:")
@@ -134,10 +158,8 @@ def import_trades_from_csv(
         rows = list(reader)
         result.total_rows = len(rows)
 
-        if dry_run:
-            print(f"🔍 DRY RUN: Validating {result.total_rows} rows (no database changes)\n")
-        else:
-            print(f"📊 Importing {result.total_rows} trades from {csv_path.name}\n")
+        # Note: Removed print statements to avoid encoding issues in Streamlit
+        # All feedback is shown in the UI via CSVImportResult
 
         with get_session() as session:
             for idx, row in enumerate(rows, start=2):  # Start at 2 (row 1 is header)
@@ -145,23 +167,34 @@ def import_trades_from_csv(
                     # Validate and convert row
                     trade_data = validate_csv_row(row, idx)
 
+                    # Check for duplicate
+                    existing = check_duplicate_trade(
+                        session,
+                        trade_data['symbol'],
+                        trade_data['entry_timestamp'],
+                        trade_data['exit_timestamp']
+                    )
+
+                    if existing:
+                        result.add_skipped(
+                            idx,
+                            f"{trade_data['symbol']} at {trade_data['entry_timestamp']} (Trade ID: {existing.trade_id})"
+                        )
+                        continue
+
                     if not dry_run:
                         # Insert into database
                         trade = create_trade(session, trade_data)
                         result.add_success(trade.trade_id)
-                        print(f"✅ Row {idx}: Created trade {trade.trade_id} "
-                              f"({trade.symbol}, ${trade.net_pnl:.2f})")
                     else:
+                        # Dry run - just validate
                         result.add_success(idx)
-                        print(f"✅ Row {idx}: Valid ({row['Symbol']}, {row['Net P&L']})")
 
                 except ValidationError as e:
                     result.add_failure(idx, str(e))
-                    print(f"❌ Row {idx}: {e}")
 
                 except Exception as e:
                     result.add_failure(idx, f"Unexpected error: {e}")
-                    print(f"❌ Row {idx}: Unexpected error - {e}")
 
     return result
 

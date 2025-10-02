@@ -107,7 +107,6 @@ class PolygonClientWrapper:
         if self.call_count >= self.rate_limit_calls:
             sleep_time = self.minute_window - elapsed
             if sleep_time > 0:
-                print(f"⏳ Rate limit reached. Waiting {sleep_time:.1f}s...")
                 time.sleep(sleep_time)
                 self.call_count = 0
                 self.last_call_time = time.time()
@@ -137,17 +136,14 @@ class PolygonClientWrapper:
                 response = self.client.get_market_status()
 
                 if response:
-                    print(f"✅ Polygon API connection successful (Plan: {self.plan_tier})")
                     return True
 
             except BadResponse as e:
                 if "403" in str(e) or "401" in str(e):
-                    print(f"❌ Invalid API key or insufficient permissions")
                     return False
-                print(f"⚠️  Connection attempt {attempt + 1}/{retries} failed: {e}")
 
             except Exception as e:
-                print(f"⚠️  Connection attempt {attempt + 1}/{retries} failed: {e}")
+                pass
 
             if attempt < retries - 1:
                 time.sleep(2 ** attempt)  # Exponential backoff
@@ -246,10 +242,9 @@ class PolygonClientWrapper:
             # No results or other error - return None
             if "404" in str(e) or "not found" in str(e).lower():
                 return None
-            # For other errors, log and return None
+            # For other errors, return None
             return None
         except Exception as e:
-            print(f"⚠️  Failed to get ticker details for {symbol}: {e}")
             return None
 
     def is_free_tier(self) -> bool:

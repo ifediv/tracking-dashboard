@@ -12,21 +12,28 @@ class ValidationError(Exception):
     pass
 
 
-def validate_trade_data(trade_data: Dict[str, Any]) -> None:
+def validate_trade_data(trade_data: Dict[str, Any], raise_exception: bool = False) -> list:
     """Validate trade data before database insertion.
 
     Args:
         trade_data: Dictionary containing trade fields
+        raise_exception: If True, raises ValidationError on first error.
+                        If False, returns list of all errors.
+
+    Returns:
+        List of error messages (empty if valid)
 
     Raises:
-        ValidationError: With descriptive message if validation fails
+        ValidationError: If raise_exception=True and validation fails
 
     Example:
-        >>> try:
-        ...     validate_trade_data(trade_data)
-        ... except ValidationError as e:
-        ...     print(f"Validation failed: {e}")
+        >>> errors = validate_trade_data(trade_data)
+        >>> if errors:
+        ...     for error in errors:
+        ...         print(f"Error: {error}")
     """
+    errors = []
+
     # Required fields
     required_fields = [
         'symbol', 'strategy_type', 'entry_timestamp', 'exit_timestamp',
@@ -37,87 +44,121 @@ def validate_trade_data(trade_data: Dict[str, Any]) -> None:
     # Check required fields
     missing = [f for f in required_fields if f not in trade_data or trade_data[f] is None]
     if missing:
-        raise ValidationError(f"Missing required fields: {', '.join(missing)}")
+        error_msg = f"Missing required fields: {', '.join(missing)}"
+        errors.append(error_msg)
+        if raise_exception:
+            raise ValidationError(error_msg)
+
+    # Return early if missing required fields (can't validate further)
+    if missing:
+        return errors
 
     # Validate strategy type
     if not config.is_valid_strategy(trade_data['strategy_type']):
-        raise ValidationError(
+        error_msg = (
             f"Invalid strategy_type '{trade_data['strategy_type']}'. "
             f"Must be one of: {', '.join(config.strategy_types)}"
         )
+        errors.append(error_msg)
+        if raise_exception:
+            raise ValidationError(error_msg)
 
     # Validate symbol format (1-5 uppercase letters)
     if not re.match(r'^[A-Z]{1,5}$', trade_data['symbol']):
-        raise ValidationError(
-            f"Invalid symbol '{trade_data['symbol']}'. Must be 1-5 uppercase letters."
-        )
+        error_msg = f"Invalid symbol '{trade_data['symbol']}'. Must be 1-5 uppercase letters."
+        errors.append(error_msg)
+        if raise_exception:
+            raise ValidationError(error_msg)
 
     # Validate timestamps
+    entry_dt = None
+    exit_dt = None
+
     for ts_field in ['entry_timestamp', 'exit_timestamp']:
         try:
-            datetime.fromisoformat(trade_data[ts_field])
+            dt = datetime.fromisoformat(trade_data[ts_field])
+            if ts_field == 'entry_timestamp':
+                entry_dt = dt
+            else:
+                exit_dt = dt
         except (ValueError, TypeError):
-            raise ValidationError(
-                f"Invalid {ts_field}. Must be ISO 8601 format (e.g., '2024-01-15T09:31:00')"
-            )
+            error_msg = f"Invalid {ts_field}. Must be ISO 8601 format (e.g., '2024-01-15T09:31:00')"
+            errors.append(error_msg)
+            if raise_exception:
+                raise ValidationError(error_msg)
 
     # Validate exit after entry
-    entry_dt = datetime.fromisoformat(trade_data['entry_timestamp'])
-    exit_dt = datetime.fromisoformat(trade_data['exit_timestamp'])
-
-    if exit_dt <= entry_dt:
-        raise ValidationError("exit_timestamp must be after entry_timestamp")
+    if entry_dt and exit_dt:
+        if exit_dt <= entry_dt:
+            error_msg = "exit_timestamp must be after entry_timestamp"
+            errors.append(error_msg)
+            if raise_exception:
+                raise ValidationError(error_msg)
 
     # Validate numeric constraints
     if trade_data['max_size'] <= 0:
-        raise ValidationError("max_size must be positive")
+        error_msg = "max_size must be positive"
+        errors.append(error_msg)
+        if raise_exception:
+            raise ValidationError(error_msg)
 
     if trade_data['entry_price'] <= 0:
-        raise ValidationError("entry_price must be positive")
+        error_msg = "entry_price must be positive"
+        errors.append(error_msg)
+        if raise_exception:
+            raise ValidationError(error_msg)
 
     if trade_data['exit_price'] <= 0:
-        raise ValidationError("exit_price must be positive")
+        error_msg = "exit_price must be positive"
+        errors.append(error_msg)
+        if raise_exception:
+            raise ValidationError(error_msg)
 
     if trade_data['bp_used_at_max'] <= 0:
-        raise ValidationError("bp_used_at_max must be positive")
+        error_msg = "bp_used_at_max must be positive"
+        errors.append(error_msg)
+        if raise_exception:
+            raise ValidationError(error_msg)
 
     # Validate position_fully_established_timestamp if provided
-    if trade_data.get('position_fully_established_timestamp'):
+    if trade_data.get('position_fully_established_timestamp') and entry_dt and exit_dt:
         try:
             pos_dt = datetime.fromisoformat(trade_data['position_fully_established_timestamp'])
             if pos_dt < entry_dt or pos_dt > exit_dt:
-                raise ValidationError(
-                    "position_fully_established_timestamp must be between entry and exit"
-                )
+                error_msg = "position_fully_established_timestamp must be between entry and exit"
+                errors.append(error_msg)
+                if raise_exception:
+                    raise ValidationError(error_msg)
         except (ValueError, TypeError):
-            raise ValidationError(
-                "Invalid position_fully_established_timestamp. Must be ISO 8601 format."
-            )
+            error_msg = "Invalid position_fully_established_timestamp. Must be ISO 8601 format."
+            errors.append(error_msg)
+            if raise_exception:
+                raise ValidationError(error_msg)
 
-    # Warn on suspicious values
-    warnings = []
+    return errors
 
-    # Check for extreme loss
-    pnl_pct = trade_data['net_pnl'] / trade_data['bp_used_at_max']
-    max_dd_threshold = config.validation_rules.get('max_reasonable_drawdown_pct', -0.5)
 
-    if pnl_pct < max_dd_threshold:
-        warnings.append(f"Extreme loss: {pnl_pct:.1%} of BP used")
+def clean_currency_value(value: str) -> str:
+    """Remove currency symbols and formatting from numeric strings.
 
-    # Check trade duration
-    duration_seconds = (exit_dt - entry_dt).total_seconds()
-    min_duration = config.validation_rules.get('min_trade_duration_seconds', 60)
-    max_duration = config.validation_rules.get('max_trade_duration_hours', 24) * 3600
+    Args:
+        value: String like '$1,234.56' or '-$98.50'
 
-    if duration_seconds < min_duration:
-        warnings.append(f"Very short trade: {duration_seconds:.0f} seconds")
+    Returns:
+        Clean numeric string like '1234.56' or '-98.50'
 
-    if duration_seconds > max_duration:
-        warnings.append(f"Very long trade: {duration_seconds/3600:.1f} hours")
+    Example:
+        >>> clean_currency_value('$1,234.56')
+        '1234.56'
+        >>> clean_currency_value('-$98.50')
+        '-98.50'
+    """
+    if not value:
+        return value
 
-    # Print warnings
-    if warnings:
-        print(f"⚠️  Warnings for {trade_data['symbol']}: {', '.join(warnings)}")
+    # Remove dollar signs, commas, and spaces
+    cleaned = value.strip().replace('$', '').replace(',', '').replace(' ', '')
+    return cleaned
 
 
 def validate_csv_row(row: Dict[str, str], row_num: int) -> Dict[str, Any]:
@@ -148,19 +189,19 @@ def validate_csv_row(row: Dict[str, str], row_num: int) -> Dict[str, Any]:
         >>> trade_data = validate_csv_row(row, 2)
     """
     try:
-        # Map CSV columns to database fields
+        # Map CSV columns to database fields (clean currency values)
         trade_data = {
             'symbol': row['Symbol'].strip().upper(),
             'entry_timestamp': parse_timestamp(row['Start']),
             'exit_timestamp': parse_timestamp(row['End']),
-            'net_pnl': float(row['Net P&L']),
-            'gross_pnl': float(row['Gross P&L']),
-            'max_size': int(row['Max Size']),
-            'price_at_max_size': float(row['Price at Max Size']),
-            'avg_price_at_max': float(row['Avg Price at Max']),
-            'bp_used_at_max': float(row['BP Used at Max']),
-            'pnl_at_open': float(row['P&L at Open']) if row.get('P&L at Open') and row['P&L at Open'].strip() else None,
-            'pnl_at_close': float(row['P&L at Close']) if row.get('P&L at Close') and row['P&L at Close'].strip() else None,
+            'net_pnl': float(clean_currency_value(row['Net P&L'])),
+            'gross_pnl': float(clean_currency_value(row['Gross P&L'])),
+            'max_size': abs(int(clean_currency_value(row['Max Size']))),  # Use absolute value for short positions
+            'price_at_max_size': float(clean_currency_value(row['Price at Max Size'])),
+            'avg_price_at_max': float(clean_currency_value(row['Avg Price at Max'])),
+            'bp_used_at_max': abs(float(clean_currency_value(row['BP Used at Max']))),  # Use absolute value
+            'pnl_at_open': float(clean_currency_value(row['P&L at Open'])) if row.get('P&L at Open') and row['P&L at Open'].strip() else None,
+            'pnl_at_close': float(clean_currency_value(row['P&L at Close'])) if row.get('P&L at Close') and row['P&L at Close'].strip() else None,
 
             # MISSING from CSV - must be provided or have defaults
             'entry_price': None,

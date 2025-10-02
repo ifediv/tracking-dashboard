@@ -170,10 +170,8 @@ class BarFetcher:
             cache_key = f"{granularity}_{self.cache.get_cache_key(symbol, start_time, end_time)}"
             cached_bars = self.cache.get(cache_key)
             if cached_bars:
-                print(f"✅ Cache hit for {symbol} ({len(cached_bars)} {granularity} bars)")
                 return cached_bars
 
-        print(f"📊 Fetching {symbol} {granularity} bars from {start_et.strftime('%Y-%m-%d %H:%M')} ET to {end_et.strftime('%Y-%m-%d %H:%M')} ET")
 
         try:
             self.client._enforce_rate_limit()
@@ -216,7 +214,7 @@ class BarFetcher:
             # Sort by timestamp (should already be sorted, but ensure it)
             bars.sort(key=lambda x: x['timestamp'])
 
-            print(f"✅ Fetched {len(bars)} bars for {symbol}")
+            print(f"[OK] Fetched {len(bars)} bars for {symbol}")
 
             # Cache results (include granularity in key)
             if self.cache and bars:
@@ -236,7 +234,7 @@ class BarFetcher:
         except Exception as e:
             # Handle case where no results are found
             if "404" in str(e) or "no results" in str(e).lower():
-                print(f"⚠️  No data available for {symbol} in requested time range")
+                print(f"[WARN] No data available for {symbol} in requested time range")
                 return []
             raise PolygonAPIError(f"Failed to fetch bars: {e}")
 
@@ -530,10 +528,10 @@ class BarFetcher:
             cache_key = f"tick_{self.cache.get_cache_key(symbol, start_time, end_time)}"
             cached_ticks = self.cache.get(cache_key)
             if cached_ticks:
-                print(f"✅ Cache hit for {symbol} ({len(cached_ticks)} ticks)")
+                print(f"[OK] Cache hit for {symbol} ({len(cached_ticks)} ticks)")
                 return cached_ticks
 
-        print(f"🎯 Fetching {symbol} tick data from {start_et.strftime('%Y-%m-%d %H:%M:%S')} ET "
+        print(f"[>>] Fetching {symbol} tick data from {start_et.strftime('%Y-%m-%d %H:%M:%S')} ET "
               f"to {end_et.strftime('%Y-%m-%d %H:%M:%S')} ET")
 
         try:
@@ -579,7 +577,7 @@ class BarFetcher:
             # Sort by timestamp
             ticks.sort(key=lambda x: x['timestamp'])
 
-            print(f"✅ Fetched {len(ticks)} ticks for {symbol}")
+            print(f"[OK] Fetched {len(ticks)} ticks for {symbol}")
 
             # Cache results
             if self.cache and ticks:
@@ -602,7 +600,7 @@ class BarFetcher:
         except Exception as e:
             # Handle case where no results are found
             if "404" in str(e) or "no results" in str(e).lower():
-                print(f"⚠️  No tick data available for {symbol} in requested time range")
+                print(f"[WARN] No tick data available for {symbol} in requested time range")
                 return []
             raise PolygonAPIError(f"Failed to fetch ticks: {e}")
 

@@ -69,6 +69,37 @@ def get_trade_by_id(session: Session, trade_id: int) -> Optional[Trade]:
     return session.query(Trade).filter(Trade.trade_id == trade_id).first()
 
 
+def check_duplicate_trade(
+    session: Session,
+    symbol: str,
+    entry_timestamp: str,
+    exit_timestamp: str
+) -> Optional[Trade]:
+    """Check if a trade with identical symbol and timestamps already exists.
+
+    Args:
+        session: Active database session
+        symbol: Stock ticker
+        entry_timestamp: Entry timestamp (ISO format)
+        exit_timestamp: Exit timestamp (ISO format)
+
+    Returns:
+        Existing Trade object if duplicate found, None otherwise
+
+    Example:
+        >>> existing = check_duplicate_trade(session, 'AAPL', '2024-01-15T09:30:00', '2024-01-15T10:15:00')
+        >>> if existing:
+        ...     print(f"Duplicate found: Trade ID {existing.trade_id}")
+    """
+    return session.query(Trade).filter(
+        and_(
+            Trade.symbol == symbol,
+            Trade.entry_timestamp == entry_timestamp,
+            Trade.exit_timestamp == exit_timestamp
+        )
+    ).first()
+
+
 def get_all_trades(
     session: Session,
     symbol: Optional[str] = None,

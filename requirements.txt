@@ -12,6 +12,10 @@ polygon-api-client>=1.12.0
 requests>=2.31.0
 pytz>=2023.3
 
-# Future Phase 4 Dependencies (commented out for now)
-# streamlit==1.29.0
-# plotly==5.18.0
+# Phase 4 Dependencies - Streamlit UI
+streamlit>=1.28.0
+pandas>=2.1.0
+streamlit-plotly-events>=0.0.6
+
+# Phase 5 Dependencies - Analytics & Visualizations
+plotly>=5.18.0
