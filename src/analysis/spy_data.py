@@ -116,12 +116,17 @@ class SPYDataFetcher:
     ) -> Dict[str, float]:
         """Calculate daily returns for SPY.
 
+        Automatically fetches data starting from 7 days before start_date to ensure
+        we have the previous day's price for calculating the return on start_date.
+        This enables proper "rolling PnL" tracking from day 1.
+
         Args:
             start_date: Start date in YYYY-MM-DD format
             end_date: End date in YYYY-MM-DD format
 
         Returns:
             Dictionary mapping date strings to daily returns (as decimals)
+            Includes return for start_date (calculated from previous day's close)
 
         Example:
             >>> fetcher = SPYDataFetcher()
@@ -129,7 +134,12 @@ class SPYDataFetcher:
             >>> for date, ret in returns.items():
             ...     print(f"{date}: {ret*100:.2f}%")
         """
-        prices = self.fetch_spy_prices(start_date, end_date)
+        # Fetch prices starting from 7 days before to ensure we have baseline
+        # (accounts for weekends/holidays before start_date)
+        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+        buffered_start = (start_dt - timedelta(days=7)).strftime('%Y-%m-%d')
+
+        prices = self.fetch_spy_prices(buffered_start, end_date)
 
         if not prices:
             return {}
@@ -146,7 +156,13 @@ class SPYDataFetcher:
             daily_return = (curr_price - prev_price) / prev_price
             daily_returns[curr_date] = daily_return
 
-        return daily_returns
+        # Only return dates >= start_date (we fetched earlier for baseline only)
+        filtered_returns = {
+            date: ret for date, ret in daily_returns.items()
+            if date >= start_date
+        }
+
+        return filtered_returns
 
     def get_price_on_date(self, date: str) -> Optional[float]:
         """Get SPY closing price on a specific date.

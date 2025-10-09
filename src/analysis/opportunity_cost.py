@@ -125,9 +125,10 @@ class OpportunityCostCalculator:
         trades = get_all_trades(self.session, start_date=start_date, end_date=end_date)
 
         # Build dict of daily P&L from trades
+        # Use EXIT timestamp - P&L is realized when trade closes
         daily_trader_pnl = {}
         for trade in trades:
-            trade_date = trade.entry_timestamp[:10]  # YYYY-MM-DD
+            trade_date = trade.exit_timestamp[:10]  # YYYY-MM-DD - when P&L was realized
             if trade_date not in daily_trader_pnl:
                 daily_trader_pnl[trade_date] = 0.0
             daily_trader_pnl[trade_date] += trade.net_pnl
