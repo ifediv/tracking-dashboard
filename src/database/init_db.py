@@ -5,7 +5,7 @@ from sqlalchemy import inspect
 
 from src.database.models import Base
 from src.database.session import engine, get_session
-from src.database.operations import create_trade
+from src.database.operations import create_trade, create_buying_power_entry
 from src.utils.config import config
 
 
@@ -244,6 +244,42 @@ def create_sample_data() -> None:
         print(f"\nCreated {count} sample trades\n")
 
 
+def create_sample_buying_power_history() -> None:
+    """Create sample buying power history for opportunity cost analysis.
+
+    Creates initial buying power entry to match the sample trade data timeline.
+
+    Example:
+        >>> create_sample_buying_power_history()
+        Created buying power history
+    """
+    sample_bp_entries = [
+        {
+            'effective_date': '2024-01-01',
+            'buying_power_amount': 500000.00,
+            'notes': 'Initial account funding - Sample data'
+        },
+    ]
+
+    with get_session() as session:
+        count = 0
+        for bp_data in sample_bp_entries:
+            try:
+                bp_entry = create_buying_power_entry(
+                    session,
+                    effective_date=bp_data['effective_date'],
+                    buying_power_amount=bp_data['buying_power_amount'],
+                    notes=bp_data.get('notes')
+                )
+                print(f"Created: {bp_entry}")
+                count += 1
+            except ValueError as e:
+                # Entry might already exist
+                print(f"Skipped: {e}")
+
+        print(f"\nCreated {count} buying power entries\n")
+
+
 def show_database_info() -> None:
     """Display database information and statistics.
 
@@ -276,14 +312,16 @@ def show_database_info() -> None:
 
     # Show row counts
     with get_session() as session:
-        from src.database.models import Trade, DrawdownAnalysis
+        from src.database.models import Trade, DrawdownAnalysis, BuyingPowerHistory
 
         trade_count = session.query(Trade).count()
         analysis_count = session.query(DrawdownAnalysis).count()
+        bp_count = session.query(BuyingPowerHistory).count()
 
         print(f"\n📈 Data:")
         print(f"  - Trades: {trade_count}")
         print(f"  - Analysis Records: {analysis_count}")
+        print(f"  - Buying Power Entries: {bp_count}")
 
     print(f"{'='*60}\n")
 
@@ -301,6 +339,7 @@ if __name__ == '__main__':
     # Create sample data if requested
     if '--sample-data' in sys.argv:
         create_sample_data()
+        create_sample_buying_power_history()
 
     # Show database info
     show_database_info()

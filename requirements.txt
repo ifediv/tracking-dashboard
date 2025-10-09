@@ -19,3 +19,6 @@ streamlit-plotly-events>=0.0.6
 
 # Phase 5 Dependencies - Analytics & Visualizations
 plotly>=5.18.0
+
+# Phase 6 Dependencies - Opportunity Cost Analysis
+yfinance>=0.2.0  # SPY data for benchmark comparison

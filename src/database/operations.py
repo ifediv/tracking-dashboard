@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc
 from datetime import datetime
 
-from src.database.models import Trade, DrawdownAnalysis
+from src.database.models import Trade, DrawdownAnalysis, BuyingPowerHistory
 
 
 def create_trade(session: Session, trade_data: Dict[str, Any]) -> Trade:
@@ -398,3 +398,167 @@ def get_strategies_summary(session: Session) -> Dict[str, int]:
     )
 
     return {strategy: count for strategy, count in result}
+
+
+# ==================== Buying Power History Operations ====================
+
+def create_buying_power_entry(
+    session: Session,
+    effective_date: str,
+    buying_power_amount: float,
+    notes: Optional[str] = None
+) -> BuyingPowerHistory:
+    """Create a new buying power history entry.
+
+    Args:
+        session: Active database session
+        effective_date: Date when BP change takes effect (YYYY-MM-DD)
+        buying_power_amount: Amount of buying power in dollars
+        notes: Optional notes about the change
+
+    Returns:
+        Created BuyingPowerHistory object
+
+    Raises:
+        ValueError: If validation fails or duplicate date exists
+
+    Example:
+        >>> bp = create_buying_power_entry(
+        ...     session,
+        ...     '2024-01-01',
+        ...     500000.00,
+        ...     'Initial account funding'
+        ... )
+    """
+    # Check for duplicate date
+    existing = session.query(BuyingPowerHistory).filter(
+        BuyingPowerHistory.effective_date == effective_date
+    ).first()
+
+    if existing:
+        raise ValueError(f"Buying power entry already exists for {effective_date}")
+
+    # Create new entry
+    bp_entry = BuyingPowerHistory(
+        effective_date=effective_date,
+        buying_power_amount=buying_power_amount,
+        notes=notes
+    )
+
+    session.add(bp_entry)
+    session.flush()
+
+    return bp_entry
+
+
+def get_all_buying_power_entries(session: Session) -> List[BuyingPowerHistory]:
+    """Get all buying power history entries, ordered by date.
+
+    Args:
+        session: Active database session
+
+    Returns:
+        List of BuyingPowerHistory objects, oldest to newest
+
+    Example:
+        >>> entries = get_all_buying_power_entries(session)
+        >>> for entry in entries:
+        ...     print(f"{entry.effective_date}: ${entry.buying_power_amount:,.0f}")
+    """
+    return (
+        session.query(BuyingPowerHistory)
+        .order_by(BuyingPowerHistory.effective_date)
+        .all()
+    )
+
+
+def get_buying_power_for_date(session: Session, target_date: str) -> float:
+    """Get the active buying power amount for a specific date.
+
+    Finds the most recent buying power entry at or before the target date.
+
+    Args:
+        session: Active database session
+        target_date: Date to query (YYYY-MM-DD format)
+
+    Returns:
+        Buying power amount in dollars, or 0.0 if no entry exists
+
+    Example:
+        >>> bp = get_buying_power_for_date(session, '2024-06-15')
+        >>> print(f"Buying power on 2024-06-15: ${bp:,.0f}")
+    """
+    entry = (
+        session.query(BuyingPowerHistory)
+        .filter(BuyingPowerHistory.effective_date <= target_date)
+        .order_by(desc(BuyingPowerHistory.effective_date))
+        .first()
+    )
+
+    return entry.buying_power_amount if entry else 0.0
+
+
+def update_buying_power_entry(
+    session: Session,
+    bp_id: int,
+    updates: Dict[str, Any]
+) -> BuyingPowerHistory:
+    """Update an existing buying power entry.
+
+    Args:
+        session: Active database session
+        bp_id: ID of entry to update
+        updates: Dictionary of fields to update
+
+    Returns:
+        Updated BuyingPowerHistory object
+
+    Raises:
+        ValueError: If entry not found
+
+    Example:
+        >>> bp = update_buying_power_entry(session, 1, {
+        ...     'buying_power_amount': 750000.00,
+        ...     'notes': 'Adjusted after review'
+        ... })
+    """
+    entry = session.query(BuyingPowerHistory).filter(
+        BuyingPowerHistory.bp_id == bp_id
+    ).first()
+
+    if not entry:
+        raise ValueError(f"Buying power entry {bp_id} not found")
+
+    # Update fields
+    for key, value in updates.items():
+        if hasattr(entry, key) and key != 'bp_id':  # Don't allow ID changes
+            setattr(entry, key, value)
+
+    session.flush()
+    return entry
+
+
+def delete_buying_power_entry(session: Session, bp_id: int) -> bool:
+    """Delete a buying power entry.
+
+    Args:
+        session: Active database session
+        bp_id: ID of entry to delete
+
+    Returns:
+        True if deleted, False if not found
+
+    Example:
+        >>> if delete_buying_power_entry(session, 1):
+        ...     print("Entry deleted")
+    """
+    entry = session.query(BuyingPowerHistory).filter(
+        BuyingPowerHistory.bp_id == bp_id
+    ).first()
+
+    if not entry:
+        return False
+
+    session.delete(entry)
+    session.flush()
+    return True

@@ -285,3 +285,74 @@ class DrawdownAnalysis(Base):
             'bar_count': self.bar_count,
             'created_at': self.created_at,
         }
+
+
+class BuyingPowerHistory(Base):
+    """Tracks changes in buying power over time for opportunity cost analysis.
+
+    Allows tracking monthly or periodic changes in account buying power
+    (e.g., $500K -> $1M). Each record represents a change that takes effect
+    on a specific date and remains active until the next change.
+
+    Attributes:
+        bp_id: Auto-incrementing primary key
+        effective_date: Date when this buying power amount takes effect (YYYY-MM-DD)
+        buying_power_amount: Amount of buying power in dollars
+        notes: Optional notes about the change
+        created_at: Record creation timestamp
+
+    Example:
+        >>> # Initial buying power
+        >>> bp1 = BuyingPowerHistory(
+        ...     effective_date='2024-01-01',
+        ...     buying_power_amount=500000.00,
+        ...     notes='Initial account funding'
+        ... )
+        >>> # Increase buying power mid-year
+        >>> bp2 = BuyingPowerHistory(
+        ...     effective_date='2024-06-01',
+        ...     buying_power_amount=1000000.00,
+        ...     notes='Account size doubled'
+        ... )
+    """
+
+    __tablename__ = 'buying_power_history'
+
+    # Primary Key
+    bp_id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Buying Power Data
+    effective_date = Column(String(10), nullable=False, unique=True, index=True)  # YYYY-MM-DD
+    buying_power_amount = Column(Float, nullable=False)
+
+    # Context
+    notes = Column(Text, nullable=True)
+
+    # Metadata
+    created_at = Column(String(30), default=lambda: datetime.utcnow().isoformat())
+
+    # Constraints
+    __table_args__ = (
+        CheckConstraint('buying_power_amount > 0', name='positive_buying_power'),
+    )
+
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return (
+            f"<BuyingPowerHistory(date={self.effective_date}, "
+            f"amount=${self.buying_power_amount:,.0f})>"
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization.
+
+        Returns:
+            Dictionary with all buying power fields
+        """
+        return {
+            'bp_id': self.bp_id,
+            'effective_date': self.effective_date,
+            'buying_power_amount': self.buying_power_amount,
+            'notes': self.notes,
+            'created_at': self.created_at,
+        }
