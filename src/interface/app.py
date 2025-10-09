@@ -70,6 +70,54 @@ st.markdown("""
         background-color: var(--terminal-bg-light) !important;
     }
 
+    /* Sidebar Navigation Links */
+    [data-testid="stSidebarNav"] {
+        background-color: var(--terminal-bg-light) !important;
+        padding-top: 1rem;
+    }
+
+    [data-testid="stSidebarNav"] ul {
+        padding: 0.5rem;
+    }
+
+    [data-testid="stSidebarNav"] li {
+        background-color: var(--terminal-bg) !important;
+        border: 1px solid var(--terminal-gray) !important;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    [data-testid="stSidebarNav"] li:hover {
+        border-color: var(--matrix-green) !important;
+        background-color: var(--terminal-bg-light) !important;
+        box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+    }
+
+    [data-testid="stSidebarNav"] li a {
+        color: var(--text-primary) !important;
+        font-family: 'Courier New', Consolas, Monaco, monospace !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 0.9rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    [data-testid="stSidebarNav"] li[aria-selected="true"] {
+        background-color: var(--terminal-gray) !important;
+        border-color: var(--matrix-green) !important;
+        border-left-width: 4px;
+    }
+
+    [data-testid="stSidebarNav"] li[aria-selected="true"] a {
+        color: var(--matrix-green) !important;
+        font-weight: bold;
+    }
+
+    [data-testid="stSidebarNav"] li span {
+        color: var(--text-primary) !important;
+    }
+
     /* Headers */
     h1, h2, h3, h4, h5, h6 {
         color: var(--matrix-green);
@@ -282,16 +330,74 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Sidebar
-st.sidebar.markdown("## ╔═══════════════════════════╗")
-st.sidebar.markdown("## ║  TRADING ANALYTICS  ║")
-st.sidebar.markdown("## ╚═══════════════════════════╝")
+st.sidebar.markdown("""
+<div style="
+    background-color: var(--terminal-bg);
+    border: 2px solid var(--matrix-green);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    font-family: 'Courier New', Consolas, Monaco, monospace;
+">
+    <div style="text-align: center; color: var(--matrix-green); font-size: 1.2rem; font-weight: bold; letter-spacing: 2px;">
+        ╔═══════════════════╗<br>
+        ║ TRADING TERMINAL ║<br>
+        ╚═══════════════════╝
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+st.sidebar.markdown("""
+<div style="
+    background-color: var(--terminal-bg-light);
+    border: 1px solid var(--terminal-gray);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    font-family: 'Courier New', Consolas, Monaco, monospace;
+">
+    <div style="color: var(--matrix-green); font-weight: bold; margin-bottom: 0.75rem; letter-spacing: 1px;">
+        [>>>] NAVIGATION
+    </div>
+    <div style="color: var(--text-primary); font-size: 0.9rem; line-height: 1.8;">
+        <div style="border-left: 3px solid var(--terminal-blue); padding-left: 0.5rem; margin-bottom: 0.5rem;">
+            <span style="color: var(--terminal-blue);">►</span> <b>Dashboard</b><br>
+            <span style="color: var(--text-secondary); font-size: 0.85rem; padding-left: 1rem;">View, filter & manage trades</span>
+        </div>
+        <div style="border-left: 3px solid var(--terminal-blue); padding-left: 0.5rem; margin-bottom: 0.5rem;">
+            <span style="color: var(--terminal-blue);">►</span> <b>Add Trade</b><br>
+            <span style="color: var(--text-secondary); font-size: 0.85rem; padding-left: 1rem;">Manual entry or CSV import</span>
+        </div>
+        <div style="border-left: 3px solid var(--terminal-blue); padding-left: 0.5rem; margin-bottom: 0.5rem;">
+            <span style="color: var(--terminal-blue);">►</span> <b>Analytics</b><br>
+            <span style="color: var(--text-secondary); font-size: 0.85rem; padding-left: 1rem;">PnL calendar & strategy analysis</span>
+        </div>
+        <div style="border-left: 3px solid var(--matrix-green); padding-left: 0.5rem;">
+            <span style="color: var(--matrix-green);">►</span> <b>Opportunity Cost</b><br>
+            <span style="color: var(--text-secondary); font-size: 0.85rem; padding-left: 1rem;">Benchmark vs SPY comparison</span>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# Add system status to sidebar
+import datetime
+current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 st.sidebar.markdown("---")
-st.sidebar.info(
-    "**[>>>] NAVIGATION**\n\n"
-    "• **Dashboard**: View, filter, and manage trades\n"
-    "• **Add Trade**: Manual entry or CSV import\n"
-    "• **Analytics**: PnL calendar, strategy analysis, drawdown metrics"
-)
+st.sidebar.markdown(f"""
+<div style="
+    background-color: var(--terminal-bg);
+    border: 1px solid var(--terminal-gray);
+    padding: 0.75rem;
+    font-family: 'Courier New', Consolas, Monaco, monospace;
+    font-size: 0.75rem;
+">
+    <div style="color: var(--text-secondary);">
+        <div style="margin-bottom: 0.3rem;">[SYSTEM STATUS]</div>
+        <div style="color: var(--matrix-green);">● ONLINE</div>
+        <div style="color: var(--text-secondary); margin-top: 0.5rem;">{current_time}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # Main page: Welcome and quick stats
 st.markdown("# >>> TRADING ANALYTICS TERMINAL")
