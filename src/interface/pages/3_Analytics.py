@@ -70,6 +70,54 @@ st.markdown("""
         background-color: var(--terminal-bg-light) !important;
     }
 
+    /* Sidebar Navigation Links */
+    [data-testid="stSidebarNav"] {
+        background-color: var(--terminal-bg-light) !important;
+        padding-top: 1rem;
+    }
+
+    [data-testid="stSidebarNav"] ul {
+        padding: 0.5rem;
+    }
+
+    [data-testid="stSidebarNav"] li {
+        background-color: var(--terminal-bg) !important;
+        border: 1px solid var(--terminal-gray) !important;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    [data-testid="stSidebarNav"] li:hover {
+        border-color: var(--matrix-green) !important;
+        background-color: var(--terminal-bg-light) !important;
+        box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+    }
+
+    [data-testid="stSidebarNav"] li a {
+        color: var(--text-primary) !important;
+        font-family: 'Courier New', Consolas, Monaco, monospace !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 0.9rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    [data-testid="stSidebarNav"] li[aria-selected="true"] {
+        background-color: var(--terminal-gray) !important;
+        border-color: var(--matrix-green) !important;
+        border-left-width: 4px;
+    }
+
+    [data-testid="stSidebarNav"] li[aria-selected="true"] a {
+        color: var(--matrix-green) !important;
+        font-weight: bold;
+    }
+
+    [data-testid="stSidebarNav"] li span {
+        color: var(--text-primary) !important;
+    }
+
     h1, h2, h3 {
         color: var(--matrix-green);
         font-family: 'Courier New', Consolas, Monaco, monospace;
@@ -381,7 +429,7 @@ with get_session() as session:
                         # Store selected date in session state
                         st.session_state['selected_date'] = clicked_date
                         # Redirect to Dashboard page
-                        st.switch_page("pages/1_📊_Dashboard.py")
+                        st.switch_page("pages/1_Dashboard.py")
         except Exception as e:
             st.error(f"[ERROR] Failed to process click: {str(e)}")
 
