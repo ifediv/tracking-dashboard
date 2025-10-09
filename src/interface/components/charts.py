@@ -572,3 +572,121 @@ def create_daily_pnl_chart(trades: List[Trade], strategy_filter: Optional[str] =
     return fig
 
 
+def create_opportunity_cost_chart(
+    daily_data: List,
+    bp_changes: List[Dict]
+) -> go.Figure:
+    """Create equity curve comparing Trader vs SPY performance.
+
+    Args:
+        daily_data: List of DailyPerformance objects from OpportunityCostCalculator
+        bp_changes: List of dicts with buying power changes {'date', 'amount', 'notes'}
+
+    Returns:
+        Plotly figure with dual equity curves
+
+    Example:
+        >>> from src.analysis.opportunity_cost import OpportunityCostCalculator
+        >>> calc = OpportunityCostCalculator(session)
+        >>> daily_data = calc.build_daily_timeline()
+        >>> bp_changes = calc.get_buying_power_changes()
+        >>> fig = create_opportunity_cost_chart(daily_data, bp_changes)
+    """
+    if not daily_data:
+        fig = go.Figure()
+        fig.update_layout(**get_plotly_layout(title="[NO DATA] Opportunity Cost Analysis"))
+        return fig
+
+    # Extract data
+    dates = [d.date for d in daily_data]
+    trader_cumulative = [d.trader_cumulative_pnl for d in daily_data]
+    spy_cumulative = [d.spy_cumulative_pnl for d in daily_data]
+
+    fig = go.Figure()
+
+    # Add Trader equity curve
+    fig.add_trace(go.Scatter(
+        x=dates,
+        y=trader_cumulative,
+        mode='lines',
+        name='Active Trading',
+        line={'color': COLORS['matrix_green'], 'width': 3},
+        fill='tonexty',
+        fillcolor=f"rgba(0, 255, 65, 0.1)",
+        hovertemplate='<b>%{x}</b><br>Trader P&L: $%{y:,.2f}<extra></extra>'
+    ))
+
+    # Add SPY equity curve
+    fig.add_trace(go.Scatter(
+        x=dates,
+        y=spy_cumulative,
+        mode='lines',
+        name='Passive SPY',
+        line={'color': COLORS['terminal_blue'], 'width': 3, 'dash': 'dash'},
+        hovertemplate='<b>%{x}</b><br>SPY P&L: $%{y:,.2f}<extra></extra>'
+    ))
+
+    # Add zero reference line
+    fig.add_hline(
+        y=0,
+        line_dash="dot",
+        line_color=COLORS['text_secondary'],
+        opacity=0.5,
+        annotation_text="Breakeven",
+        annotation_position="right"
+    )
+
+    # Add vertical lines for buying power changes
+    for bp_change in bp_changes:
+        if bp_change['date'] in dates:
+            fig.add_vline(
+                x=bp_change['date'],
+                line_dash="dash",
+                line_color=COLORS['warning'],
+                opacity=0.6,
+                annotation_text=f"BP: ${bp_change['amount']/1000:.0f}K",
+                annotation_position="top",
+                annotation_font={'size': 9, 'color': COLORS['warning']}
+            )
+
+    # Final values annotation
+    if daily_data:
+        final_trader = trader_cumulative[-1]
+        final_spy = spy_cumulative[-1]
+        outperformance = final_trader - final_spy
+
+        annotation_y = max(final_trader, final_spy)
+        annotation_color = COLORS['profit'] if outperformance > 0 else COLORS['loss']
+
+        fig.add_annotation(
+            x=dates[-1],
+            y=annotation_y,
+            text=f"Outperformance: ${outperformance:,.0f}",
+            showarrow=True,
+            arrowhead=2,
+            arrowcolor=annotation_color,
+            font={'color': annotation_color, 'size': 12, 'family': 'Courier New'},
+            yshift=20
+        )
+
+    fig.update_layout(**get_plotly_layout(
+        title="[OPPORTUNITY COST] Active Trading vs Passive SPY Investment",
+        xaxis_title="Date",
+        yaxis_title="Cumulative P&L ($)",
+        height=600,
+        showlegend=True,
+        legend={
+            'bgcolor': COLORS['bg_light'],
+            'bordercolor': COLORS['matrix_green'],
+            'borderwidth': 1,
+            'font': {'color': COLORS['text_primary']}
+        },
+        hovermode='x unified'
+    ))
+
+    # Format y-axis with dollar signs
+    fig.update_yaxes(tickprefix='$', tickformat=',.0f')
+
+    return fig
+
+
