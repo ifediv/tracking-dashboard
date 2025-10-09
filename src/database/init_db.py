@@ -23,24 +23,24 @@ def init_database(drop_existing: bool = False) -> None:
         >>> init_database(drop_existing=True)  # Reset database
     """
     if drop_existing:
-        print("⚠️  WARNING: Dropping all existing tables...")
+        print("WARNING: Dropping all existing tables...")
         Base.metadata.drop_all(engine)
-        print("✅ Tables dropped")
+        print("Tables dropped")
 
     print("Creating database tables...")
     Base.metadata.create_all(engine)
-    print("✅ Database initialized successfully")
+    print("Database initialized successfully")
 
     # Verify tables created
     inspector = inspect(engine)
     tables = inspector.get_table_names()
-    print(f"\n📊 Tables created: {', '.join(tables)}")
+    print(f"\nTables created: {', '.join(tables)}")
 
     # Show database location
     db_url = config.database_url
     if db_url.startswith('sqlite:///'):
         db_path = db_url.replace('sqlite:///', '')
-        print(f"📁 Database file: {db_path}\n")
+        print(f"Database file: {db_path}\n")
 
 
 def create_sample_data() -> None:
@@ -238,10 +238,10 @@ def create_sample_data() -> None:
         count = 0
         for trade_data in sample_trades:
             trade = create_trade(session, trade_data)
-            print(f"✅ Created: {trade}")
+            print(f"Created: {trade}")
             count += 1
 
-        print(f"\n📊 Created {count} sample trades\n")
+        print(f"\nCreated {count} sample trades\n")
 
 
 def show_database_info() -> None:
