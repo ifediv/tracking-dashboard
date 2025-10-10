@@ -356,7 +356,7 @@ def create_hold_time_curve(session: Session, strategy_type: str) -> go.Figure:
     # Get average P&L at each timeframe for this strategy
     query = session.query(
         DrawdownAnalysis.timeframe_minutes,
-        func.avg(DrawdownAnalysis.unrealized_pnl_at_timeframe).label('avg_pnl'),
+        func.avg(DrawdownAnalysis.end_of_timeframe_pnl_dollar).label('avg_pnl'),
         func.count(DrawdownAnalysis.analysis_id).label('count')
     ).join(
         Trade, DrawdownAnalysis.trade_id == Trade.trade_id
@@ -686,6 +686,348 @@ def create_opportunity_cost_chart(
 
     # Format y-axis with dollar signs
     fig.update_yaxes(tickprefix='$', tickformat=',.0f')
+
+    return fig
+
+
+def create_optimal_hold_matrix_chart(
+    matrix_data: List,
+    title: str = "[OPTIMAL HOLD MATRIX] Strategy × Timeframe Analysis"
+) -> go.Figure:
+    """Create heatmap showing average P&L by strategy and timeframe.
+
+    Args:
+        matrix_data: List of StrategyTimeframeMetrics objects from OptimalHoldAnalyzer
+        title: Chart title
+
+    Returns:
+        Plotly heatmap figure
+
+    Example:
+        >>> from src.analysis.optimal_hold_analyzer import OptimalHoldAnalyzer
+        >>> analyzer = OptimalHoldAnalyzer(session)
+        >>> matrix = analyzer.get_strategy_timeframe_matrix()
+        >>> fig = create_optimal_hold_matrix_chart(matrix)
+    """
+    if not matrix_data:
+        fig = go.Figure()
+        fig.update_layout(**get_plotly_layout(title="[NO DATA] Optimal Hold Matrix"))
+        return fig
+
+    # Convert to DataFrame
+    df = pd.DataFrame([
+        {
+            'strategy': m.strategy_type,
+            'timeframe': m.timeframe_minutes,
+            'avg_pnl': m.avg_pnl_dollar,
+            'count': m.trade_count
+        }
+        for m in matrix_data
+    ])
+
+    # Create pivot tables
+    pivot = df.pivot(index='strategy', columns='timeframe', values='avg_pnl')
+    count_pivot = df.pivot(index='strategy', columns='timeframe', values='count')
+
+    # Determine color scale based on P&L range
+    min_pnl = pivot.min().min()
+    max_pnl = pivot.max().max()
+
+    # Custom colorscale: Red (negative) -> Gray (zero) -> Green (positive)
+    colorscale = [
+        [0, COLORS['loss']],        # Most negative
+        [0.5, COLORS['terminal_gray']],  # Zero
+        [1, COLORS['profit']]       # Most positive
+    ]
+
+    # Create heatmap
+    fig = go.Figure(data=go.Heatmap(
+        z=pivot.values,
+        x=[f"{int(t)}min" for t in pivot.columns],
+        y=pivot.index,
+        colorscale=colorscale,
+        text=count_pivot.values,
+        texttemplate='$%{z:.0f}<br>n=%{text}',
+        textfont={'size': 10, 'color': COLORS['text_primary']},
+        colorbar={
+            'title': {
+                'text': 'Avg P&L',
+                'font': {'color': COLORS['matrix_green']}
+            },
+            'tickfont': {'color': COLORS['text_secondary']},
+            'tickprefix': '$',
+            'tickformat': ',.0f'
+        },
+        hovertemplate='<b>%{y}</b><br>Timeframe: %{x}<br>Avg P&L: $%{z:.2f}<br>Trades: %{text}<extra></extra>',
+        zmid=0  # Set midpoint to zero for diverging color scale
+    ))
+
+    fig.update_layout(**get_plotly_layout(
+        title=title,
+        xaxis_title="Hold Time",
+        yaxis_title="Strategy",
+        height=max(400, len(pivot.index) * 60)
+    ))
+
+    return fig
+
+
+def create_strategy_hold_curves_chart(
+    matrix_data: List,
+    strategies_to_show: Optional[List[str]] = None
+) -> go.Figure:
+    """Create multi-line chart showing hold time curves for multiple strategies.
+
+    Args:
+        matrix_data: List of StrategyTimeframeMetrics objects from OptimalHoldAnalyzer
+        strategies_to_show: Optional list of strategies to display (None = all)
+
+    Returns:
+        Plotly line chart with multiple strategy curves
+
+    Example:
+        >>> matrix = analyzer.get_strategy_timeframe_matrix()
+        >>> fig = create_strategy_hold_curves_chart(matrix, ['news', 'swing', 'waterfall'])
+    """
+    if not matrix_data:
+        fig = go.Figure()
+        fig.update_layout(**get_plotly_layout(title="[NO DATA] Strategy Hold Curves"))
+        return fig
+
+    # Convert to DataFrame
+    df = pd.DataFrame([
+        {
+            'strategy': m.strategy_type,
+            'timeframe': m.timeframe_minutes,
+            'avg_pnl': m.avg_pnl_dollar,
+            'count': m.trade_count
+        }
+        for m in matrix_data
+    ])
+
+    # Filter strategies if specified
+    if strategies_to_show:
+        df = df[df['strategy'].isin(strategies_to_show)]
+
+    if len(df) == 0:
+        fig = go.Figure()
+        fig.update_layout(**get_plotly_layout(title="[NO DATA] Strategy Hold Curves"))
+        return fig
+
+    fig = go.Figure()
+
+    # Color palette for different strategies
+    strategy_colors = [
+        COLORS['matrix_green'],
+        COLORS['terminal_blue'],
+        COLORS['warning'],
+        '#ff00ff',  # Magenta
+        '#00ffff',  # Cyan
+        '#ff8c00',  # Dark orange
+    ]
+
+    # Plot each strategy
+    for idx, strategy in enumerate(df['strategy'].unique()):
+        strategy_df = df[df['strategy'] == strategy].sort_values('timeframe')
+
+        color = strategy_colors[idx % len(strategy_colors)]
+
+        fig.add_trace(go.Scatter(
+            x=strategy_df['timeframe'],
+            y=strategy_df['avg_pnl'],
+            mode='lines+markers',
+            name=strategy.upper(),
+            line={'color': color, 'width': 3},
+            marker={'size': 8},
+            hovertemplate=f'<b>{strategy.upper()}</b><br>%{{x}}min<br>Avg P&L: $%{{y:.2f}}<extra></extra>'
+        ))
+
+    # Add zero reference line
+    fig.add_hline(
+        y=0,
+        line_dash="dash",
+        line_color=COLORS['text_secondary'],
+        opacity=0.5
+    )
+
+    fig.update_layout(**get_plotly_layout(
+        title="[HOLD TIME CURVES] Multi-Strategy Comparison",
+        xaxis_title="Hold Time (minutes)",
+        yaxis_title="Average P&L ($)",
+        height=550,
+        showlegend=True,
+        legend={
+            'bgcolor': COLORS['bg_light'],
+            'bordercolor': COLORS['matrix_green'],
+            'borderwidth': 1,
+            'font': {'color': COLORS['text_primary']}
+        }
+    ))
+
+    # Format y-axis
+    fig.update_yaxes(tickprefix='$', tickformat=',.0f')
+
+    return fig
+
+
+def create_cumulative_pnl_simulation_chart(
+    simulations: List,
+    actual_total_pnl: float
+) -> go.Figure:
+    """Create bar chart comparing simulated vs actual cumulative P&L.
+
+    Shows "what if" analysis: what would total P&L be if all trades
+    were held for each timeframe?
+
+    Args:
+        simulations: List of CumulativePnLSimulation objects from OptimalHoldAnalyzer
+        actual_total_pnl: Actual total P&L for comparison
+
+    Returns:
+        Plotly bar chart
+
+    Example:
+        >>> simulations = analyzer.get_all_simulations()
+        >>> actual_pnl = session.query(func.sum(Trade.net_pnl)).scalar()
+        >>> fig = create_cumulative_pnl_simulation_chart(simulations, actual_pnl)
+    """
+    if not simulations:
+        fig = go.Figure()
+        fig.update_layout(**get_plotly_layout(title="[NO DATA] Cumulative P&L Simulation"))
+        return fig
+
+    # Extract data
+    timeframes = [sim.timeframe_minutes for sim in simulations]
+    simulated_pnls = [sim.total_pnl for sim in simulations]
+    vs_actual = [sim.vs_actual_pnl for sim in simulations]
+
+    # Color bars based on whether they beat actual
+    colors = [
+        COLORS['profit'] if pnl > actual_total_pnl else COLORS['loss']
+        for pnl in simulated_pnls
+    ]
+
+    fig = go.Figure()
+
+    # Add simulated P&L bars
+    fig.add_trace(go.Bar(
+        x=[f"{tf}min" for tf in timeframes],
+        y=simulated_pnls,
+        marker={'color': colors},
+        text=[f"${pnl:,.0f}" for pnl in simulated_pnls],
+        textposition='outside',
+        textfont={'color': COLORS['text_primary']},
+        hovertemplate='<b>%{x} Hold</b><br>Simulated: $%{y:,.2f}<br>vs Actual: %{customdata:+,.2f}<extra></extra>',
+        customdata=vs_actual
+    ))
+
+    # Add actual P&L reference line
+    fig.add_hline(
+        y=actual_total_pnl,
+        line_dash="dash",
+        line_color=COLORS['matrix_green'],
+        line_width=3,
+        annotation_text=f"Actual: ${actual_total_pnl:,.0f}",
+        annotation_position="right",
+        annotation_font={'color': COLORS['matrix_green'], 'size': 12}
+    )
+
+    # Find best timeframe
+    best_idx = simulated_pnls.index(max(simulated_pnls))
+    best_timeframe = timeframes[best_idx]
+    best_pnl = simulated_pnls[best_idx]
+
+    fig.update_layout(**get_plotly_layout(
+        title=f"[CUMULATIVE PNL SIMULATION] Best Hold: {best_timeframe}min (${best_pnl:,.0f})",
+        xaxis_title="Simulated Hold Time",
+        yaxis_title="Total P&L ($)",
+        height=500,
+        showlegend=False
+    ))
+
+    # Format y-axis
+    fig.update_yaxes(tickprefix='$', tickformat=',.0f')
+
+    return fig
+
+
+def create_drawdown_by_timeframe_chart(
+    dd_stats: Dict[int, Dict[str, float]],
+    title: str = "[DRAWDOWN ANALYSIS] Maximum Drawdown by Timeframe"
+) -> go.Figure:
+    """Create bar chart showing drawdown statistics by timeframe.
+
+    Args:
+        dd_stats: Dictionary from OptimalHoldAnalyzer.get_drawdown_by_timeframe()
+        title: Chart title
+
+    Returns:
+        Plotly bar chart with error bars
+
+    Example:
+        >>> dd_stats = analyzer.get_drawdown_by_timeframe(strategy_filter='news')
+        >>> fig = create_drawdown_by_timeframe_chart(dd_stats)
+    """
+    if not dd_stats:
+        fig = go.Figure()
+        fig.update_layout(**get_plotly_layout(title="[NO DATA] Drawdown Analysis"))
+        return fig
+
+    # Extract data
+    timeframes = sorted(dd_stats.keys())
+    avg_dds = [dd_stats[tf]['avg_dd'] for tf in timeframes]
+    median_dds = [dd_stats[tf]['median_dd'] for tf in timeframes]
+    worst_dds = [dd_stats[tf]['worst_dd'] for tf in timeframes]
+    trade_counts = [dd_stats[tf]['count'] for tf in timeframes]
+
+    fig = go.Figure()
+
+    # Add average drawdown bars
+    fig.add_trace(go.Bar(
+        x=[f"{tf}min" for tf in timeframes],
+        y=avg_dds,
+        name='Average DD',
+        marker={'color': COLORS['loss'], 'opacity': 0.7},
+        text=[f"{dd:.1f}%" for dd in avg_dds],
+        textposition='outside',
+        textfont={'color': COLORS['text_primary']},
+        hovertemplate='<b>%{x}</b><br>Avg DD: %{y:.2f}%<br>Trades: %{customdata}<extra></extra>',
+        customdata=trade_counts
+    ))
+
+    # Add worst drawdown line
+    fig.add_trace(go.Scatter(
+        x=[f"{tf}min" for tf in timeframes],
+        y=worst_dds,
+        name='Worst DD',
+        mode='lines+markers',
+        line={'color': COLORS['warning'], 'width': 3, 'dash': 'dash'},
+        marker={'size': 10, 'symbol': 'x'},
+        hovertemplate='<b>%{x}</b><br>Worst DD: %{y:.2f}%<extra></extra>'
+    ))
+
+    # Add zero reference line
+    fig.add_hline(
+        y=0,
+        line_dash="dot",
+        line_color=COLORS['text_secondary'],
+        opacity=0.5
+    )
+
+    fig.update_layout(**get_plotly_layout(
+        title=title,
+        xaxis_title="Timeframe",
+        yaxis_title="Drawdown (%)",
+        height=500,
+        showlegend=True,
+        legend={
+            'bgcolor': COLORS['bg_light'],
+            'bordercolor': COLORS['matrix_green'],
+            'borderwidth': 1,
+            'font': {'color': COLORS['text_primary']}
+        },
+        yaxis={'ticksuffix': '%'}
+    ))
 
     return fig
 

@@ -163,13 +163,13 @@ class Trade(Base):
 class DrawdownAnalysis(Base):
     """Stores calculated drawdown metrics for a trade at specific timeframe.
 
-    Each trade will have 8 analysis records (one per timeframe: 3, 5, 10, 15, 30, 60, 120, 240 minutes).
+    Each trade will have 8 analysis records (one per timeframe: 2, 3, 5, 10, 15, 30, 60, 240 minutes).
     These records are populated by the analysis engine in Phase 2.
 
     Attributes:
         analysis_id: Auto-incrementing primary key
         trade_id: Foreign key to Trade
-        timeframe_minutes: Analysis window (3, 5, 10, 15, 30, 60, 120, 240)
+        timeframe_minutes: Analysis window (2, 3, 5, 10, 15, 30, 60, 240)
         max_drawdown_pct: Most negative % move from entry (must be <= 0)
         max_drawdown_dollar: Dollar value of max drawdown
         time_to_max_drawdown_seconds: Seconds from entry to max drawdown
@@ -237,7 +237,7 @@ class DrawdownAnalysis(Base):
     # Constraints
     __table_args__ = (
         CheckConstraint(
-            'timeframe_minutes IN (3, 5, 10, 15, 30, 60, 120, 240)',
+            'timeframe_minutes IN (2, 3, 5, 10, 15, 30, 60, 240)',
             name='valid_timeframe'
         ),
         CheckConstraint(

@@ -13,7 +13,8 @@ strategy_types:
   - waterfall
 
 # Analysis Timeframes (minutes)
-timeframes: [3, 5, 10, 15, 30, 60, 120, 240]
+# Updated for optimal hold time analysis: added 2min, removed 120min (2hr redundant with 4hr)
+timeframes: [2, 3, 5, 10, 15, 30, 60, 240]
 
 # Validation Rules
 validation:

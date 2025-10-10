@@ -900,7 +900,7 @@ try:
             # Wrap table in container with fixed width
             # Create a grid layout for the table
             # Header row - using explicit gap parameter (added DELETE column)
-            cols = st.columns([0.4, 0.5, 0.8, 1.2, 1.0, 0.8, 1.0, 0.8, 1.0, 1.0, 0.8, 1.0, 0.8, 1.0], gap="small")
+            cols = st.columns([0.4, 0.7, 0.9, 1.2, 1.0, 0.8, 1.0, 0.8, 1.0, 1.0, 0.7, 1.0, 0.7, 1.0], gap="small")
             headers = ['DEL', 'ID', 'SYMBOL', 'STRATEGY', 'ENTRY-DATE', 'ENTRY-TIME', 'EXIT-DATE', 'EXIT-TIME',
                        'ENTRY-PRICE', 'EXIT-PRICE', 'SIZE', 'NET-P&L', 'P&L-%', 'GROSS-P&L']
             for col, header in zip(cols, headers):
@@ -910,7 +910,7 @@ try:
 
             # Data rows with editable strategy dropdown
             for idx, row in df.iterrows():
-                cols = st.columns([0.4, 0.5, 0.8, 1.2, 1.0, 0.8, 1.0, 0.8, 1.0, 1.0, 0.8, 1.0, 0.8, 1.0], gap="small")
+                cols = st.columns([0.4, 0.7, 0.9, 1.2, 1.0, 0.8, 1.0, 0.8, 1.0, 1.0, 0.7, 1.0, 0.7, 1.0], gap="small")
 
                 trade_id = row['ID']
 
@@ -1200,6 +1200,114 @@ try:
 
                 else:
                     st.warning(f"[WARN] Trade #{trade_id_to_view} not found in filtered results")
+
+        # Optimal Hold Time Analysis Section
+        st.divider()
+        st.markdown("## [OPTIMAL HOLD TIME INSIGHTS]")
+        st.info("[INFO] Analyze optimal hold times for each strategy. Identify execution gaps and improvement opportunities.")
+
+        try:
+            from src.analysis.optimal_hold_analyzer import OptimalHoldAnalyzer
+            from src.interface.components.modal import render_terminal_info_box, render_terminal_expander
+            from src.interface.components.charts import create_optimal_hold_matrix_chart
+
+            analyzer = OptimalHoldAnalyzer(session)
+
+            # Ticker filter
+            col_ticker_filter1, col_ticker_filter2 = st.columns([2, 3])
+            with col_ticker_filter1:
+                available_tickers = sorted(list(set(t.symbol for t in all_trades if t.symbol)))
+                selected_ticker_dashboard = st.selectbox(
+                    "Filter by Ticker",
+                    options=["All Tickers"] + available_tickers,
+                    key="dashboard_ticker_filter"
+                )
+                ticker_filter_dashboard = None if selected_ticker_dashboard == "All Tickers" else selected_ticker_dashboard
+
+            with col_ticker_filter2:
+                if ticker_filter_dashboard:
+                    st.info(f"[FILTER ACTIVE] Showing analysis for: **{ticker_filter_dashboard}**")
+
+            # Get optimal hold times
+            optimal_times = analyzer.get_optimal_hold_times(ticker_filter_dashboard)
+
+            if optimal_times:
+                # Show top 3 strategies with best improvement potential
+                top_3 = optimal_times[:3]
+
+                col1, col2, col3 = st.columns(3)
+
+                for idx, opt in enumerate(top_3):
+                    with [col1, col2, col3][idx]:
+                        # Determine color based on execution gap
+                        gap_color = 'warning' if abs(opt.execution_gap_minutes) > 30 else 'matrix_green'
+
+                        st.markdown(f"""
+                        <div style="
+                            border: 2px solid {'#ffaa00' if gap_color == 'warning' else '#00ff41'};
+                            border-radius: 4px;
+                            padding: 1rem;
+                            background-color: #0d1f1a;
+                            font-family: 'Courier New', Consolas, Monaco, monospace;
+                        ">
+                            <div style="color: #00ff41; font-size: 1rem; font-weight: bold; text-transform: uppercase; margin-bottom: 0.5rem;">
+                                {opt.strategy_type}
+                            </div>
+                            <div style="color: #a0a0a0; font-size: 0.8rem; margin-bottom: 0.3rem;">Optimal Hold:</div>
+                            <div style="color: #1e90ff; font-size: 1.5rem; font-weight: bold;">{opt.optimal_timeframe_minutes}min</div>
+                            <div style="color: #a0a0a0; font-size: 0.8rem; margin-top: 0.5rem;">Actual Avg:</div>
+                            <div style="color: #e0e0e0; font-size: 1.2rem;">{opt.actual_avg_hold_minutes:.0f}min</div>
+                            <div style="color: #a0a0a0; font-size: 0.8rem; margin-top: 0.5rem;">Execution Gap:</div>
+                            <div style="color: {'#ffaa00' if gap_color == 'warning' else '#00ff41'}; font-size: 1rem; font-weight: bold;">
+                                {opt.execution_gap_minutes:+.0f}min
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                st.divider()
+
+                # Expandable detailed view
+                def render_optimal_hold_details():
+                    st.markdown("### All Strategies")
+
+                    # Create summary table
+                    summary_data = []
+                    for opt in optimal_times:
+                        summary_data.append({
+                            'Strategy': opt.strategy_type.upper(),
+                            'Optimal Hold (min)': opt.optimal_timeframe_minutes,
+                            'Optimal Avg P&L': f"${opt.optimal_avg_pnl:.2f}",
+                            'Actual Avg Hold (min)': f"{opt.actual_avg_hold_minutes:.0f}",
+                            'Execution Gap (min)': f"{opt.execution_gap_minutes:+.0f}",
+                            'Improvement Potential': f"${opt.improvement_potential_dollars:,.0f}"
+                        })
+
+                    df_summary = pd.DataFrame(summary_data)
+                    st.dataframe(df_summary, use_container_width=True, hide_index=True)
+
+                    st.divider()
+
+                    # Matrix heatmap
+                    matrix_data = analyzer.get_strategy_timeframe_matrix(None, ticker_filter_dashboard)
+                    if matrix_data:
+                        st.markdown("### Strategy × Timeframe Matrix")
+                        fig = create_optimal_hold_matrix_chart(matrix_data)
+                        st.plotly_chart(fig, use_container_width=True)
+
+                render_terminal_expander(
+                    title="View Detailed Analysis",
+                    content_callback=render_optimal_hold_details,
+                    expanded=False,
+                    key="optimal_hold_details"
+                )
+
+            else:
+                st.warning("[WARN] No optimal hold time data available. Run analysis on trades first.")
+
+        except Exception as e:
+            st.error(f"[ERROR] Failed to load optimal hold time analysis: {str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
 
 except Exception as e:
     st.error(f"[ERROR] Failed to load trades: {str(e)}")

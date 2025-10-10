@@ -68,14 +68,16 @@ class OpportunityCostCalculator:
         >>> print(f"Outperformance: ${metrics.outperformance_dollars:,.2f}")
     """
 
-    def __init__(self, session: Session):
+    def __init__(self, session: Session, strategy_filter: Optional[List[str]] = None):
         """Initialize calculator.
 
         Args:
             session: Active database session
+            strategy_filter: Optional list of strategy types to filter by
         """
         self.session = session
         self.spy_fetcher = SPYDataFetcher()
+        self.strategy_filter = strategy_filter
 
     def get_date_range(self) -> Tuple[str, str]:
         """Get the date range for analysis based on trades.
@@ -89,6 +91,12 @@ class OpportunityCostCalculator:
         trades = get_all_trades(self.session)
         if not trades:
             raise ValueError("No trades found in database")
+
+        # Filter by strategy if specified
+        if self.strategy_filter:
+            trades = [t for t in trades if t.strategy_type in self.strategy_filter]
+            if not trades:
+                raise ValueError(f"No trades found for strategies: {', '.join(self.strategy_filter)}")
 
         # Get earliest and latest trade dates
         entry_dates = [t.entry_timestamp[:10] for t in trades]  # Extract YYYY-MM-DD
@@ -123,6 +131,10 @@ class OpportunityCostCalculator:
 
         # Get all trades
         trades = get_all_trades(self.session, start_date=start_date, end_date=end_date)
+
+        # Filter by strategy if specified
+        if self.strategy_filter:
+            trades = [t for t in trades if t.strategy_type in self.strategy_filter]
 
         # Build dict of daily P&L from trades
         # Use EXIT timestamp - P&L is realized when trade closes

@@ -3,10 +3,11 @@
 This module provides a wrapper around the Polygon.io REST API client
 with enhanced error handling, connection validation, and market status checks.
 
-Note: Free tier has limitations:
-- 5 API calls per minute
-- End-of-day data only (no real-time)
-- No extended hours data
+Note: Stock Starter plan ($29/month) includes:
+- Unlimited API calls
+- 5 years of historical data
+- Minute + second aggregates
+- 15-minute delayed real-time data
 """
 
 import os
@@ -51,12 +52,12 @@ class PolygonClientWrapper:
         ...     print(f"Market open: {status['open']}")
     """
 
-    def __init__(self, api_key: Optional[str] = None, plan_tier: str = 'free'):
+    def __init__(self, api_key: Optional[str] = None, plan_tier: str = 'starter'):
         """Initialize Polygon client.
 
         Args:
             api_key: Polygon API key (defaults to env variable)
-            plan_tier: API plan tier ('free', 'starter', 'advanced')
+            plan_tier: API plan tier ('free', 'starter', 'advanced') - defaults to 'starter'
 
         Raises:
             PolygonAPIError: If API key is missing
